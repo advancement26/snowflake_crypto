@@ -101,6 +101,8 @@ crypto-analytics-snowflake/
 
 ## Dashboard
 
+🔗 **[View Live Dashboard](https://datastudio.google.com/reporting/ae173d1f-b45f-434d-b969-fb2ba4420231)**
+
 Live Looker Studio executive dashboard — 3 report pages:
 
 | Page | Key Insights |
@@ -108,6 +110,15 @@ Live Looker Studio executive dashboard — 3 report pages:
 | **Coin Performance** | Top 10 coins by market cap (USD & ZAR), performance category distribution, supply analysis |
 | **Market Sentiment** | BTC price dominance at 96.2%, EUR coin prices, 24h momentum by coin |
 | **FX Crypto Correlation** | Fear & Greed index trend, BTC dominance over time, market risk signal classification |
+
+### Coin Performance
+![Coin Performance](dashboard/coin_performamnce.png)
+
+### Market Sentiment
+![Market Sentiment](dashboard/market_sentiment.png)
+
+### FX Crypto Correlation
+![FX Crypto Correlation](dashboard/correlation.png)
 
 ---
 
