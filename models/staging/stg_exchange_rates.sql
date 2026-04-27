@@ -3,7 +3,7 @@ with source as (
     select * from {{ source('raw', 'raw_exchange_rates') }}
 
 ),
-
+ 
 renamed as (
 
     select

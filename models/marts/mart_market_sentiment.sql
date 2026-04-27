@@ -1,7 +1,7 @@
 {{config(materialized='table')}}
 with fear_greed as (
     select * from {{ ref('stg_fear_greed_index') }}
-),
+), 
 
 global_market as (
     select * from {{ ref('stg_global_markets') }}

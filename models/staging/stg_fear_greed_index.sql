@@ -23,7 +23,7 @@ renamed as (
         ingested_at
 
     from source
-
+ 
 )
 
 select * from renamed
