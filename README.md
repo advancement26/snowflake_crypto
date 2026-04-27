@@ -1,28 +1,50 @@
-cap |
+# Crypto Analytics Pipeline
+
+> End-to-end data engineering pipeline for ingesting, transforming, and modelling cryptocurrency and financial market data into analytics-ready datasets.
+
+**Stack:** Snowflake · dbt · Apache Airflow · Docker
 
 ---
 
-## dbt Model Architecture
+## Overview
 
-### Staging Layer — `models/staging/`
+This pipeline processes live data from multiple external APIs and delivers structured mart models purpose-built for BI consumption in Looker Studio. It is designed around append-only ingestion for time-series analysis, incremental transformation, and a clean separation between staging and business logic layers.
 
-One model per source. Cleans raw data, standardises column names, casts types, handles NULLs. No business logic at this layer.
+**Data volume:** ~500+ cryptocurrencies per run  
+**Cadence:** Daily snapshot with historical accumulation  
+**External sources:** CoinGecko · Exchange Rates API · Fear & Greed Index
 
-### Mart Layer — `models/marts/`
+---
 
-Business logic, cross-currency calculations, aggregations, and classification. Serves directly as the Looker Studio data source.
+## Architecture
+
+### dbt Model Layers
+
+#### Staging — `models/staging/`
+
+One model per source. Responsibilities are strictly limited to:
+
+- Renaming and standardising column names
+- Casting types and handling NULLs
+- No business logic whatsoever
+
+This keeps upstream changes isolated and the transformation layer clean.
+
+#### Marts — `models/marts/`
+
+Business logic lives exclusively here: cross-currency calculations, aggregations, classification, and signals. These models serve directly as Looker Studio data sources.
 
 | Mart | Description |
 |------|-------------|
-| `mart_coin_performance` | Top coins by market cap with ZAR/EUR cross-currency pricing, performance categorisation (Strong Gainer → Strong Loser), and supply metrics |
-| `mart_market_sentiment` | Price dominance by coin, 24h momentum signals, EUR pricing table, coin-level sentiment classification |
-| `mart_fx_crypto_correlation` | BTC/ETH dominance vs Fear & Greed index over time, market risk signal (High Capitulation Risk vs Normal Conditions) |
+| `mart_coin_performance` | Top coins by market cap with ZAR/EUR pricing, performance categorisation, and supply metrics |
+| `mart_market_sentiment` | Price dominance, momentum signals, EUR pricing, and sentiment classification |
+| `mart_fx_crypto_correlation` | BTC/ETH dominance vs Fear & Greed index with market risk signals |
 
 ---
 
 ## Data Quality
 
-dbt generic tests implemented across staging and mart layers:
+dbt tests are implemented across both layers. Example schema definition:
 
 ```yaml
 models:
@@ -40,34 +62,47 @@ models:
           - not_null
 ```
 
-Two-layer validation approach:
-- **Automated** — dbt not_null and unique tests run on every pipeline execution
-- **Visual** — dashboard KPIs manually verified against Snowflake source data before delivery
+Validation operates in two passes:
+
+1. **Automated dbt tests** run on every pipeline execution as a quality gate before dashboard refresh
+2. **Visual validation** against warehouse data to catch semantic issues that tests alone may miss
 
 ---
 
-## Orchestration — Apache Airflow
+## Orchestration
 
-The pipeline runs automatically every day at 06:00 UTC via an Airflow DAG (`dags/crypto_pipeline_dag.py`):
+The pipeline runs daily at **06:00 UTC** via Apache Airflow.
 
 ```
-[Fetch APIs] → [Load to Snowflake] → [dbt run] → [dbt test] → [Dashboard refreshes]
+[Fetch APIs] → [Load to Snowflake] → [dbt run] → [dbt test] → [Dashboard refresh]
 ```
 
-Zero manual intervention required after deployment.
+Design principles:
+
+- Independent ingestion tasks per API source
+- Downstream tasks gate on upstream success
+- dbt serves as both the transformation layer and the quality gate
+- Retry logic handles transient API failures
 
 ---
 
-## Containerisation — Docker
+## Containerisation
 
-The full pipeline is containerised using Docker and Docker Compose for complete portability:
+The full environment is containerised for reproducibility across machines.
 
 ```bash
-# Start the pipeline
 docker-compose up
 ```
 
-Runs identically on any machine — no environment setup, no dependency conflicts.
+No local dependency management required — the compose stack bootstraps Airflow, dbt, and all ingestion dependencies.
+
+---
+
+## Performance & Optimisation
+
+- **Incremental models** where applicable to avoid full reprocessing
+- **Column pruning** to reduce Snowflake scan costs
+- **Domain-separated marts** to keep query surfaces narrow and models independently scalable
 
 ---
 
@@ -75,20 +110,14 @@ Runs identically on any machine — no environment setup, no dependency conflict
 
 ```
 crypto-analytics-snowflake/
+├── dashboard/
+│   ├── coin_performamnce.png
+│   ├── market_sentiment.png
+│   └── correlation.png
 ├── models/
-│   ├── staging/
-│   │   ├── sources.yml
-│   │   ├── schema.yml
-│   │   ├── stg_coingecko_markets.sql
-│   │   ├── stg_exchange_rates.sql
-│   │   ├── stg_fear_greed_index.sql
-│   │   └── stg_global_markets.sql
-│   └── marts/
-│       ├── mart_coin_performance.sql
-│       ├── mart_market_sentiment.sql
-│       └── mart_fx_crypto_correlation.sql
-├── dags/
-│   └── crypto_pipeline_dag.py
+│   ├── staging/          # One model per source, no business logic
+│   └── marts/            # Business logic, cross-currency, aggregations
+├── dags/                 # Airflow DAG definitions
 ├── dbt_project.yml
 ├── docker-compose.yml
 ├── Dockerfile
@@ -101,42 +130,65 @@ crypto-analytics-snowflake/
 
 ## Dashboard
 
-🔗 **[View Live Dashboard](https://datastudio.google.com/reporting/ae173d1f-b45f-434d-b969-fb2ba4420231)**
+**Live report:** [View in Looker Studio →](https://datastudio.google.com/reporting/ae173d1f-b45f-434d-b969-fb2ba4420231)
 
-Live Looker Studio executive dashboard — 3 report pages:
-
-| Page | Key Insights |
-|------|-------------|
-| **Coin Performance** | Top 10 coins by market cap (USD & ZAR), performance category distribution, supply analysis |
-| **Market Sentiment** | BTC price dominance at 96.2%, EUR coin prices, 24h momentum by coin |
-| **FX Crypto Correlation** | Fear & Greed index trend, BTC dominance over time, market risk signal classification |
+---
 
 ### Coin Performance
+
+Tracks market cap rankings across 500+ coins with ZAR pricing, performance categorisation (Gainer / Loser / Stable / Strong Loser), total supply distribution, and a top 10 leaderboard by market cap.
+
 ![Coin Performance](dashboard/coin_performamnce.png)
 
-### Market Sentiment
-![Market Sentiment](dashboard/market_sentiment.png)
+---
 
-### FX Crypto Correlation
+### Market Sentiment Analysis
+
+Monitors BTC price dominance (96.2% at time of capture), 24h price change momentum per coin, EUR-denominated top 10 pricing, and sentiment classification signals.
+
+![Market Sentiment Analysis](dashboard/market_sentiment.png)
+
+---
+
+### FX & Crypto Correlation
+
+Overlays BTC/ETH dominance against the Fear & Greed index to surface macro risk signals. Tracks high capitation risk (46.1%) vs normal conditions (53.9%) and plots dominance vs sentiment over time.
+
 ![FX Crypto Correlation](dashboard/correlation.png)
 
 ---
 
 ## Key Engineering Decisions
 
-**Marts separated by domain** — performance, sentiment, and FX correlation serve distinct analytical purposes. Forced joins across unrelated domains were deliberately avoided to preserve mart integrity and query performance.
+**Domain-separated marts, not a mega-mart**  
+Each mart serves a specific analytical domain. This avoids the wide-table anti-pattern and keeps models independently evolvable.
 
-**Staging models kept thin** — all cleaning at staging, all business logic at marts. Clean separation makes debugging and testing straightforward.
+**Thin staging layer**  
+Staging models do one thing: clean and standardise. Business definitions live in marts, not scattered across transformations.
 
-**ZAR cross-currency pricing** — built natively into `mart_coin_performance` via a cross join with `stg_exchange_rates`, reflecting real-world multi-currency reporting requirements.
+**Cross-currency pricing (ZAR/EUR)**  
+FX rates are refreshed per execution, keeping cross-currency metrics current without stale rate assumptions baked into the model.
 
-**Two-layer data quality** — automated dbt tests catch structural issues at ingestion; human visual validation on the dashboard catches aggregation logic errors. Neither replaces the other.
+**Dual validation strategy**  
+Automated dbt tests catch structural issues at runtime. Visual validation against the warehouse catches semantic drift that schema tests cannot.
+
+---
+
+## Future Improvements
+
+- **Streaming ingestion** via Kafka or Snowflake Streaming for sub-daily latency
+- **Alerting layer** for volatility thresholds and data freshness SLAs
+- **CI/CD for dbt** — automated test runs on pull requests before merging model changes
+- **Data lineage** via dbt exposures to document mart-to-dashboard relationships
 
 ---
 
 ## Author
 
-**Proud Kudzai Ndlovu** — Data Engineer | Analytics Engineer
+**Proud Kudzai Ndlovu**  
+Data Engineer · Analytics Engineer
+
 - GitHub: [ApostolicDA](https://github.com/ApostolicDA)
-- LinkedIn: [proud-ndlovu-89070854](https://linkedin.com/in/proud-ndlovu-89070854)
-- Open to remote roles globally · SAST (UTC+2)
+- LinkedIn: [proud-ndlovu-89070854](https://www.linkedin.com/in/proud-ndlovu-89070854)
+
+Open to remote roles globally · SAST (UTC+2)
