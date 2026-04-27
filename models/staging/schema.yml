@@ -1,21 +1,23 @@
-
-version: 2
-
 models:
-    - name: my_first_dbt_model
-      description: "A starter dbt model"
-      columns:
-          - name: id
-            description: "The primary key for this table"
-            tests:
-                - unique
-                - not_null
+  - name: stg_coins
+    columns:
+      - name: coin_id
+        tests:
+          - not_null
+          - unique
+      - name: price_usd
+        tests:
+          - not_null
 
-    - name: my_second_dbt_model
-      description: "A starter dbt model"
-      columns:
-          - name: id
-            description: "The primary key for this table"
-            tests:
-                - unique
-                - not_null
+  - name: mart_coin_performance
+    columns:
+      - name: coin_id
+        tests:
+         - not_null
+          - unique
+      - name: market_cap_usd
+        tests:
+          - unique
+          - not_null
+          
+          
