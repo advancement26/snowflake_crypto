@@ -58,4 +58,4 @@ final as (
     cross join zar_rate z
 )
 
-select * from final 
+select * from final

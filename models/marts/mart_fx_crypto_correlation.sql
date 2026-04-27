@@ -63,4 +63,4 @@ final as (
     cross join global_market gm
 )
 
-select * from final 
+select * from final
